@@ -92,3 +92,8 @@ splitFun name _ = mzero
    completely new name every time you go down a binder. If would be much more
    useful if it could remember its original user-provided name and use it as a
    base automatically. -}
+
+{- TODO:
+   * Record the names of the binders in the Expr structure
+   * Define a monad for manipulating the terms: BinderM
+   * Use Name for hierarchical namespaces, not just agents/subfunctions -}
