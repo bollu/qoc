@@ -1,0 +1,5 @@
+packages: qoc.cabal
+
+package dear-imgui
+  flags: +sdl +opengl3
+
