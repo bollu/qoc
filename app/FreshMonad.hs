@@ -1,3 +1,6 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
 module Control.Monad.Trans.Fresh (
   FreshT,
   evalFreshT, execFreshT,
@@ -18,20 +21,16 @@ import qualified Data.Map as Map
 
 {- Freshness monad transformer -}
 
-newtype FreshT m a = FreshT (StateT FreshState m a)
+newtype FreshT m a = FreshT { runFreshT :: StateT FreshState m a }
+  deriving (Functor, Applicative, Monad, MonadTrans)
+
 newtype FreshState = FreshState (Map String Int)
 
 evalFreshT :: (Monad m) => FreshT m a -> FreshState -> m a
-evalFreshT (FreshT x) = evalStateT x
+evalFreshT = evalStateT . runFreshT
 
 execFreshT :: (Monad m) => FreshT m a -> FreshState -> m FreshState
-execFreshT (FreshT x) = execStateT x
-
-instance (Functor m) => Functor (FreshT m) where
-  fmap f (FreshT x) = FreshT (fmap f x)
-
-instance MonadTrans FreshT where
-  lift = FreshT . lift
+execFreshT = execStateT . runFreshT
 
 emptyFreshState :: FreshState
 emptyFreshState = FreshState Map.empty
@@ -63,10 +62,10 @@ freshNames n k = FreshT $ StateT $ \(FreshState st) ->
 type Fresh = FreshT Identity
 
 runFresh :: Fresh a -> FreshState -> (a, FreshState)
-runFresh (FreshT x) = runState x
+runFresh = runState . runFreshT
 
 evalFresh :: Fresh a -> FreshState -> a
-evalFresh (FreshT x) = evalState x
+evalFresh = evalState . runFreshT
 
 execFresh :: Fresh a -> FreshState -> FreshState
-execFresh (FreshT x) = execState x
+execFresh = execState . runFreshT
