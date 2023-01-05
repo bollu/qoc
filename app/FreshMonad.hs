@@ -40,6 +40,7 @@ splitTrailingDigits s =
   let (x, y) = span isDigit (reverse s) in
   (reverse y, reverse x)
 
+-- TODO: Take a local name as input instead, and bump the index
 freshName :: (Monad m) => String -> FreshT m (String, Int)
 freshName n = FreshT $ StateT $ \(FreshState st) ->
   let count = Map.findWithDefault 0 n st in

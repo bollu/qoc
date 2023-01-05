@@ -1,55 +1,53 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {- Based on:
      Functional Pearl: I am not a Number—I am a Free Variable
      https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.365.2479&rep=rep1&type=pdf -}
-module Expr (Expr) where
+module Expr (
+  Expr,
+  -- TODO: Other make-expression functions (and keep constructors private)
+  mkForall,
+  mkForalls,
+  mkFun,
+  mkFuns,
+) where
 
 import Control.Monad
-
-{- An indexed name (eg. ("x", 0) for `x_0`). -}
-type Name = (String, Int)
-
-{- Qualified names including namespaces -}
--- | TODO: Are these always fully resolved?
-type QualifiedName = [Name]
+import Name
 
 infixl 9 :$
 infixr 6 :->
 infixr 6 :=>
 
 {- A binder (<var>: <type>) -}
-data Binding = Binding Name Expr deriving (Show, Eq)
+data Binding = Binding LocalName Expr deriving (Show, Eq)
 type Bindings = [Binding]
 
+{- data Level =
+   Zero
+ | Max
+ | Succ -}
 
 data Expr =
-    Free Name
+    Free LocalName
   | Bound Int
-  | Const QualifiedName
+  | Const ResolvedName
   | Expr :$ Expr
   | Binding :-> Scope {- forall -}
   | Binding :=> Scope {- fun -}
   deriving (Show, Eq)
 
-{- data Level = 
-   Zero
- | Max
- | Succ -}
+{- We use De Bruijn indices to store terms, so that f.i.
+     `fun x => x` is `Binding "x" (Sort 0) :=> Scope (Bound 0)`
 
--- \x x. is ("x", Sort 0) :-> Scope (Bound 0)
--- Note that the RHS 'Scope (Bound 0)' is missing a binder. The LHS is the 
--- actual binder '("x", Sort 0)'
-
--- | Expr lacking a toplevel binder (Bound 0 does not have a binder parent)
--- | fi. Expr lam lam (0 1) is lam x y. x y
--- | and Scope lam (0 1) is the same (but the toplevel binder is missing)
+   Note how the RHS of :=>, `Bound 0`, isn't a well-formed term since it's
+   missing a binder. To enforce that this RHS isn't mistakenly interpreted as a
+   term, it is classified as a `Scope` rathen than en `Expr`. -}
 newtype Scope = Scope Expr
   deriving (Show, Eq)
 
-
-abstract :: Name -> Expr -> Scope
+-- `abstract name e` turns `name` into bound variable #0 in `e`.
+abstract :: LocalName -> Expr -> Scope
 abstract name expr = Scope (abstractAtDepth 0 expr) where
   abstractAtDepth depth (Free name')
     | name == name' = Bound depth
@@ -63,6 +61,7 @@ abstract name expr = Scope (abstractAtDepth 0 expr) where
   abstractAtDepth depth (Binding n e :=> Scope f) =
     Binding n (abstractAtDepth depth e) :=> Scope (abstractAtDepth (depth+1) f)
 
+-- `instantiate image s` replaces bound variable #0 in `s` with `image`.
 instantiate :: Expr -> Scope -> Expr
 instantiate image (Scope e) = replaceAtDepth 0 e where
   replaceAtDepth depth (Free name) =
@@ -83,11 +82,11 @@ mkForall b@(Binding name _) body = b :-> abstract name body
 mkForalls :: Bindings -> Expr -> Expr
 mkForalls bindings body = foldl (\expr b -> mkForall b expr) body bindings
 
--- | TODO: Use name if supplied, something based on n otherwise?
--- | Or maybe have a different function (freshness monad-related) that builds a
--- | suitable name based on n.
-splitForall :: MonadPlus m => Name -> Expr -> m (Binding, Expr)
-splitForall name (Binding _ e :-> s) = return (Binding name e, instantiate (Free name) s)
+-- `splitForall name (forall x, e)` introduces x as `name`. This is a low-level
+-- function. The caller must check that `name` is available.
+splitForall :: MonadPlus m => LocalName -> Expr -> m (Binding, Expr)
+splitForall name (Binding _ e :-> s) =
+  return (Binding name e, instantiate (Free name) s)
 splitForall name _ = mzero
 
 mkFun :: Binding -> Expr -> Expr
@@ -96,33 +95,15 @@ mkFun b@(Binding name _) body = b :=> abstract name body
 mkFuns :: Bindings -> Expr -> Expr
 mkFuns bindings body = foldl (\expr b -> mkFun b expr) body bindings
 
-splitFun :: MonadPlus m => Name -> Expr -> m (Binding, Expr)
-splitFun name (Binding _ e :=> s) = return (Binding name e, instantiate (Free name) s)
+-- `splitFun name (fun x => e)` introduces x as `name`. This is a low-level
+-- function. The caller must check that `name` is available.
+splitFun :: MonadPlus m => LocalName -> Expr -> m (Binding, Expr)
+splitFun name (Binding _ e :=> s) =
+  return (Binding name e, instantiate (Free name) s)
 splitFun name _ = mzero
 
-
-{- TODO: Like the McBride paper, make the use of a root more systematic. But
-   rather than the somewhat vague "agency", probably put it in a term
-   manipulation monad?
-   Edit: This is actually suggested at the end of the paper.
-
-   What operations?
-   ...
--}
-
-class Monad m => MonadFresh m name | m -> name where 
-  mkFresh :: name -> m name
-  scopeFreshness :: m a -> m a -- ^ clear fresh names outside scope.
-
-class (MonadPlus m, MonadFresh m Name) => MonadTerm m where
-  introForall :: Maybe Name -> Expr -> m (Binding, Expr)
-
-
-{- Question:
-   Should we identify user-input names like "x: Int" and
-   environment-local unique names with different types? -}
-
-{- TODO:
-   * Record the names of the binders in the Expr structure
-   * Define a monad for manipulating the terms: BinderM
-   * Use Name for hierarchical namespaces, not just agents/subfunctions -}
+-- TODO: | Should have a stack of introduced binders
+-- TODO: | Think harder about the operations to put there
+class (MonadPlus m) => MonadTerm m where
+  introForall :: Maybe String -> Expr -> m (Binding, Expr)
+  introFun :: Maybe String -> Expr -> m (Binding, Expr)
