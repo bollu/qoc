@@ -1,6 +1,13 @@
 # QoC
 
+#### Plan
+
+- (Jan 5): Begin working on normalization+type checking, parser+printer.
+
+
+
 #### Papers
+- [Lean pratt parser notes](https://github.com/leanprover/lean4/blob/b9f0062a5813f3bec597a1377c818875b1b8f1e0/src/Lean/Parser/Basic.lean#L1592)
 - [The foil](https://arxiv.org/pdf/2210.04729.pdf)
 - Miller's pattern unification
 - eliminating-dependent-pattern-matching

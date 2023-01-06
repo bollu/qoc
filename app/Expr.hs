@@ -105,5 +105,7 @@ splitFun name _ = mzero
 -- TODO: | Should have a stack of introduced binders
 -- TODO: | Think harder about the operations to put there
 class (MonadPlus m) => MonadTerm m where
-  introForall :: Maybe String -> Expr -> m (Binding, Expr)
-  introFun :: Maybe String -> Expr -> m (Binding, Expr)
+  forallTelescoping :: Maybe String -> Expr -> ([Binding] -> Expr -> m a) -> m a
+  lambdaTelescoping :: Maybe String -> Expr -> ([Binding] -> Expr -> m a) -> m a
+  -- introForall :: Maybe String -> Expr -> m (Binding, Expr)
+  -- introFun :: Maybe String -> Expr -> m (Binding, Expr)
