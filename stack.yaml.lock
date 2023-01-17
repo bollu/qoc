@@ -3,7 +3,14 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    hackage: dear-imgui-2.1.3@sha256:3c00ebf59e98c049549c3c24436a389191f92f14726c406e640e0cc3481c8924,8691
+    pantry-tree:
+      size: 5269
+      sha256: 79ee7c91e223bf348541ebaa23067a2cb840a29ce1dae1cb68fdfbbd738320bd
+  original:
+    hackage: dear-imgui-2.1.3@sha256:3c00ebf59e98c049549c3c24436a389191f92f14726c406e640e0cc3481c8924,8691
 snapshots:
 - completed:
     size: 590100
