@@ -74,3 +74,59 @@ unifyPattern (PatternCtor ctor ps) (TermCtor ctor' ts) =
 unifyPattern (PatternInaccessible _) t = Right mempty
 unifyPattern p t = Left (p, t)
 
+{-
+ 
+--------------------------[GUARD-CONS]
+ t[i] < C t[1] ... t[n]
+
+  f < t
+-------------------[GUARD-APP]
+  f x < t
+
+  r < s ; s < t
+-------------------[GUARD-TRANS]
+  r < t
+
+ 
+ -}
+
+
+-- Lambda Pi expressions
+data Kind = Kind0 | Kind1
+
+data CoreExpr =
+   CorePi VarName CoreExpr CoreExpr  -- Π (x : T) . e
+ | CoreLam VarName CoreType CoreExpr -- λ (x : T) . e
+ | CoreApp CoreExpr CoreExpr -- f x
+type CoreType = CoreExpr
+
+
+-- capture avoiding substitution for core expressions.
+coreSubst :: Subst -> CoreExpr -> CoreExpr
+coreSubst = undefined
+
+-- all types in the telescope must be of the same kind.
+data Telescope = Telescope {
+  telescopeKind :: Kind,
+  telescopeBinders :: [(VarName, CoreType)]
+}
+
+
+type CoreError = String
+
+
+-- checkCore e t checks that e has type t
+checkCore :: CoreExpr -> CoreType -> Either CoreError CoreExpr
+checkCore = undefined
+
+-- infer the type of a lambda PI expression
+inferCore :: CoreExpr -> Either CoreError CoreType
+inferCore = undefined
+
+-- normalize an Core expression.
+normalizeCore :: CoreExpr -> Either CoreError CoreExpr
+normalizeCore = undefined
+
+
+
+
