@@ -1,5 +1,7 @@
 module CaseTree where
-import Data.List.NonEmpty
+import Data.List.NonEmpty(NonEmpty)
+import Data.Traversable
+import Control.Monad
 {- 
 Copyright (c) 2022 Siddharth Bhat. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
@@ -57,4 +59,18 @@ data Splitting =
   , splittingType :: Term
   , splittingSplits :: [Splitting]
 }
+
+
+type Subst = [(VarName, Term)]
+type MatchError = (Pattern, Term)
+-- if matching succeeds, return a substitution
+-- Otherwise, return (pattern, term) pair that does not unify.
+unifyPattern :: Pattern -> Term -> Either MatchError Subst
+unifyPattern (PatternVar x) t = Right $ [(x,t)]
+unifyPattern (PatternCtor ctor ps) (TermCtor ctor' ts) = 
+  if ctor == ctor' && length ps == length ts then
+    foldM (\σ (p, t) -> (<> σ) <$> (unifyPattern p t)) mempty (zip ps ts) 
+  else Left (PatternCtor ctor ps, TermCtor ctor' ts)
+unifyPattern (PatternInaccessible _) t = Right mempty
+unifyPattern p t = Left (p, t)
 
