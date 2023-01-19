@@ -7,9 +7,14 @@ Copyright (c) 2022 Siddharth Bhat. All rights reserved.
 Released under Apache 2.0 license as described in the file LICENSE.
 -}
 
+{-
+- References: introduction to CIC: https://hal.inria.fr/hal-01094195/document
+-}
+
 type FnName = String
 type VarName = String
 type CtorName = String
+type InductiveName = String
 
 type M a = IO a -- we live in the IO monad, yes. easy debugging.
 
@@ -74,6 +79,7 @@ unifyPattern (PatternCtor ctor ps) (TermCtor ctor' ts) =
 unifyPattern (PatternInaccessible _) t = Right mempty
 unifyPattern p t = Left (p, t)
 
+
 {-
  
 --------------------------[GUARD-CONS]
@@ -98,6 +104,8 @@ data CoreExpr =
    CorePi VarName CoreExpr CoreExpr  -- Π (x : T) . e
  | CoreLam VarName CoreType CoreExpr -- λ (x : T) . e
  | CoreApp CoreExpr CoreExpr -- f x
+ | CoreCtor Ctor [CoreExpr] -- constructor
+ | CoreElim InductiveDef [CoreExpr] -- eliminator
 type CoreType = CoreExpr
 
 
@@ -112,21 +120,39 @@ data Telescope = Telescope {
 }
 
 
+data Ctor = Ctor {
+  ctorInductiveName :: InductiveName -- name of the inductive type.
+  , ctorName :: CtorName -- name of the constructor.
+  , ctorTelescope :: Telescope -- telescope of arguments.
+}
+
+-- | Definition of an InductiveDef type.
+-- https://hal.inria.fr/hal-01094195/document
+data InductiveDef = InductiveDef {
+  inductiveDefName :: InductiveName
+  -- why must all constructors live in the same universe?
+  , inductiveIndexes :: ([CoreType], Kind)
+  , inductiveCtors :: [Ctor]
+}
+
 type CoreError = String
 
-
--- checkCore e t checks that e has type t
+-- | checkCore e t checks that e has type t
 checkCore :: CoreExpr -> CoreType -> Either CoreError CoreExpr
 checkCore = undefined
 
--- infer the type of a lambda PI expression
+-- | infer the type of a lambda PI expression
 inferCore :: CoreExpr -> Either CoreError CoreType
 inferCore = undefined
 
--- normalize an Core expression.
+-- | normalize a Core expression.
 normalizeCore :: CoreExpr -> Either CoreError CoreExpr
 normalizeCore = undefined
 
 
+-- | compile a program into a core eliminator, given the list of inductives
+-- the program uses (to generate eliminators)
+programToCore :: [InductiveDef] -> Program -> CoreExpr
+programToCore = undefined
 
 
