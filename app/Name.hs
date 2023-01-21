@@ -18,7 +18,7 @@ Summary:
   ConstantName -- Partially-qualified constant name ("show"), ambiguous,
                   depends on open namespaces
   ResolvedName -- Fully-qualified constant name ("GHC.Show.show"), unambiguous
-  LocalName    -- Indexed identifier used in local contexts ("x_0")
+  LocalName    -- Indexed identifier used in local contexts ("x₀")
 -}
 module Name (
   ConstantName(..),
@@ -29,7 +29,7 @@ module Name (
 
 import Control.Monad
 import Data.List
-import Data.Char
+import Util
 
 {- We add constructors to make sure that `ConstantName` and `ResolvedName` are
    not interoperable. We also intentionally do not provide `Eq` for
@@ -52,15 +52,6 @@ newtype LocalName = LocalName (String, Int)
 
 instance Eq LocalName where
   LocalName (x, i) == LocalName (y, j) = x == y && ((i < 0 && j < 0) || i == j)
-
-toSubscriptDigits :: Int -> String
-toSubscriptDigits = map (chr . (\x -> x - ord '0' + ord '₀') . ord) . show
-
-ofSubscriptDigits :: String -> Int
-ofSubscriptDigits = read . map (chr . (\x -> x - ord '₀' + ord '0') . ord)
-
-isSubscriptDigit :: Char -> Bool
-isSubscriptDigit c = ord c >= ord '₀' && ord c <= ord '₉'
 
 instance Show LocalName where
   show (LocalName (x, i)) = if i >= 0 then x ++ toSubscriptDigits i else x

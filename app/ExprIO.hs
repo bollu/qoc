@@ -1,7 +1,13 @@
 {-# LANGUAGE ViewPatterns #-}
 module ExprIO where 
+
 import Control.Applicative
 import Data.Either
+import Data.List
+import Data.Char
+import Expr
+import Name
+import Util
 
 data Loc = Loc {
   locIdx :: Int -- number of code points.
@@ -15,6 +21,9 @@ instance Show Loc where
 advanceLoc :: Char -> Loc -> Loc 
 advanceLoc '\n' (Loc idx row col) = Loc (idx+1) (row+1) 1
 advanceLoc _ (Loc idx row col) = Loc (idx+1) row (col+1)
+
+advanceLocStr :: String -> Loc -> Loc
+advanceLocStr str loc = foldl (flip advanceLoc) loc str
 
 data Span = Span { spanStartLoc :: Loc, spanEndLoc :: Loc }
 
@@ -33,6 +42,10 @@ parserReturn :: a -> Parser a
 parserReturn r = Parser $ \loc str ->
   Right (loc, str, Token r $ Span loc loc)
 
+{-
+## Lexical elements
+-}
+
 singleChar :: Char -> Parser Char
 singleChar = Parser . singleCharAux where
   singleCharAux c loc [] = Left $ "expected '" ++ (c : "', found EOF")
@@ -40,6 +53,72 @@ singleChar = Parser . singleCharAux where
     | c' == c    = let loc' = advanceLoc c loc in Right (loc', str, Token c (Span loc loc'))
     | otherwise  = Left $ "expected '" ++ (c : "', found '" ++ (c' : "'"))
 
+keyword :: String -> Parser ()
+keyword kw = Parser $ \loc str ->
+  if kw `isPrefixOf` str then
+    let loc' = advanceLocStr kw loc in
+    Right (loc', drop (length kw) str, Token () (Span loc loc'))
+  else
+    Left $ "expected '" ++ kw ++ "'"
+
+-- Identifiers
+-- ident = [a-zA-Z][a-zA-Z0-9₀-₉_]*|_[a-zA-Z0-9₀-₉_]+
+-- TODO: Allow more Unicode characters in identifiers
+
+identValidLeading :: Char -> Bool
+identValidLeading c = isAlpha c
+
+identValidTrailing :: Char -> Bool
+identValidTrailing c = isAlphaNum c || isSubscriptDigit c || (c == '_')
+
+identAux :: String -> Maybe (String, String)
+identAux ('_':str) =
+  let (trailing, str) = span identValidTrailing str in
+  case trailing of
+    "" -> Nothing
+    _ -> Just ('_':trailing, str)
+identAux (c:str)
+  | identValidLeading c =
+      let (trailing, str) = span identValidTrailing str in
+      Just (c:trailing, str)
+  | otherwise = Nothing
+identAux _ = Nothing
+
+ident :: Parser String
+ident = Parser $ \loc str ->
+  case identAux str of
+    Nothing -> Left $ "expected identifier"
+    Just (name, str) ->
+      let loc' = advanceLocStr name loc in
+      Right (loc', str, Token name (Span loc loc'))
+
+-- Whitespace and comments (-- single line, /- multi-line -/)
+-- TODO: Whitespace sensivity?!
+
+whitespaceAux :: String -> (Int, String)
+whitespaceAux (' ':s) = whitespaceAux s
+whitespaceAux ('\t':s) = whitespaceAux s
+whitespaceAux ('\n':s) = whitespaceAux s
+whitespaceAux ('-':'-':s) = whitespaceAux $ snd $ break (= '\n') s
+whitespaceAux ('/':'-':s) = whitespaceAux (skipMultiLineComment 1 s)
+  where skipMultiLineComment 0 s = s
+        skipMultiLineComment n ('/':'-':s) = skipMultiLineComment (n+1) s
+        skipMultiLineComment n ('-':'/':s) = skipMultiLineComment (n-1) s
+        skipMultiLineComment n (c:s) = skipMultiLineComment n s
+        skipMultiLineComment n [] = Nothing
+whitespaceAux s = Just s
+
+{- WIP
+whitespace :: Parser ()
+whitespace = Parser $\loc str ->
+  case whitespaceAux str of
+    Nothing -> Left "unterminated comment"
+    Just str -> Right (loc, str
+-}
+
+{-
+## Parser combinator structures
+-}
 
 parserFail :: Parser a
 parserFail = Parser $ \loc str ->
@@ -72,3 +151,9 @@ instance Alternative Parser where
   -- <|> tries both options in the given order
   p₁ <|> p₂ = Parser $ \loc str -> do
     runParser p₁ loc str <> runParser p₂ loc str
+
+{-
+## Syntactic elements
+-}
+
+-- TODO
