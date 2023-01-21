@@ -42,7 +42,7 @@ data Expr =
 
    Note how the RHS of :=>, `Bound 0`, isn't a well-formed term since it's
    missing a binder. To enforce that this RHS isn't mistakenly interpreted as a
-   term, it is classified as a `Scope` rathen than en `Expr`. -}
+   term, it is classified as a `Scope` rathen than an `Expr`. -}
 newtype Scope = Scope Expr
   deriving (Show, Eq)
 
