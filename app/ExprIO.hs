@@ -284,6 +284,28 @@ ident = Parser $ \ps ->
 ## Syntactic elements
 -}
 
+binding :: Parser Binding
+binding =
+    keyword "(" >> ident >>= (\i ->
+    keyword ":" >> expr >>= (\t ->
+    return $ Binding (localNameFromString i) t))
+
+exprParen :: Parser Expr
+exprParen = keyword "(" >> expr >>= (\x -> keyword ")" >> return x)
+
+exprFun :: Parser Expr
+exprFun =
+  keyword "fun" >> binding >>= (\b ->
+  keyword "=>" >> expr >>= (\e ->
+  return $ mkFun b e))
+
+expr :: Parser Expr
+expr =
+  (ident >>= return . mkLocal . localNameFromString)
+  <|> exprParen
+  <|> exprFun
+  <|> parserError "invalid expression"
+
 -- TODO
 
 

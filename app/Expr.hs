@@ -5,11 +5,13 @@
      https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.365.2479&rep=rep1&type=pdf -}
 module Expr (
   Expr,
+  Binding(..),
   -- TODO: Other make-expression functions (and keep constructors private)
   mkForall,
   mkForalls,
   mkFun,
   mkFuns,
+  mkLocal,
 ) where
 
 import Control.Monad
@@ -101,6 +103,9 @@ splitFun :: MonadPlus m => LocalName -> Expr -> m (Binding, Expr)
 splitFun name (Binding _ e :=> s) =
   return (Binding name e, instantiate (Free name) s)
 splitFun name _ = mzero
+
+mkLocal :: LocalName -> Expr
+mkLocal = Free
 
 -- TODO: | Should have a stack of introduced binders
 -- TODO: | Think harder about the operations to put there
