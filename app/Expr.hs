@@ -4,6 +4,7 @@
      Functional Pearl: I am not a Number—I am a Free Variable
      https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.365.2479&rep=rep1&type=pdf -}
 module Expr (
+  Level(..),
   Expr,
   Binding(..),
   -- TODO: Other make-expression functions (and keep constructors private)
@@ -15,6 +16,7 @@ module Expr (
 ) where
 
 import Control.Monad
+import Data.Maybe
 import Name
 
 infixl 9 :$
@@ -25,19 +27,62 @@ infixr 6 :=>
 data Binding = Binding LocalName Expr deriving (Show, Eq)
 type Bindings = [Binding]
 
-{- data Level =
-   Zero
- | Max
- | Succ -}
+data Level =
+    Zero              -- 0
+  | Max Level Level   -- max _ _ (precedence 1)
+  | Succ Level        -- _+1 (predence 2)
+  deriving (Eq)
+
+succDepth :: Level -> (Int, Maybe Level)
+succDepth (Succ l) = (n+1, ml) where (n, ml) = succDepth l
+succDepth Zero = (0, Nothing)
+succDepth l = (0, Just l)
+
+showLevel :: Int -> Level -> ShowS
+showLevel _ Zero = showString "0"
+showLevel _ l@(Succ _) =
+  let (depth, ml) = succDepth l in
+  case ml of
+    Nothing -> showString $ show depth
+    Just l -> showLevel 2 l . showString ("+" ++ show depth)
+showLevel d (Max l₁ l₂) =
+  showParen (d >= 1) $
+    showString "max " . showLevel 1 l₁ . showString " " . showLevel 1 l₂
+
+instance Show Level where
+  showsPrec = showLevel
 
 data Expr =
     Free LocalName
   | Bound Int
   | Const ResolvedName
-  | Expr :$ Expr
-  | Binding :-> Scope {- forall -}
-  | Binding :=> Scope {- fun -}
-  deriving (Show, Eq)
+  | Meta Integer
+  | Sort Level
+  | Expr :$ Expr        -- _ _ (precedence 3)
+  | Binding :-> Scope   -- forall _, _ (precedence 2)
+  | Binding :=> Scope   -- fun _ => _ (precedence 2)
+  deriving (Eq)
+
+-- TODO: This needs to live in a context where it knows what variables names are
+-- available, so it can use fresh names for binders (eg. write "fun x => x"
+-- as "fun x₁ => x₁" if "x" is already in context)
+showExpr :: Int -> Expr -> ShowS
+showExpr _ (Free l) = showString $ show l
+showExpr _ (Bound b) = showString $ show b
+showExpr _ (Const rn) = showString $ show rn
+showExpr _ (Meta m) = showString "?m." . showString (show m)
+showExpr _ (Sort Zero) = showString "Prop"
+showExpr _ (Sort l) = showString "Type " . showsPrec 2 l
+showExpr _ (e₁ :$ e₂) = showsPrec 3 e₁ . showString " " . showsPrec 3 e₂
+showExpr p e@(b@(Binding n _) :-> _) =
+  showString "forall " . showString (show b) . showString ", " .
+  showsPrec 2 (snd $ fromJust $ splitForall n e)
+showExpr p e@(b@(Binding n _) :=> _) =
+  showString "fun " . showString (show b) . showString " => " .
+  showsPrec 2 (snd $ fromJust $ splitFun n e)
+
+instance Show Expr where
+  showsPrec = showExpr
 
 {- We use De Bruijn indices to store terms, so that f.i.
      `fun x => x` is `Binding "x" (Sort 0) :=> Scope (Bound 0)`
@@ -114,3 +159,6 @@ class (MonadPlus m) => MonadTerm m where
   lambdaTelescoping :: Maybe String -> Expr -> ([Binding] -> Expr -> m a) -> m a
   -- introForall :: Maybe String -> Expr -> m (Binding, Expr)
   -- introFun :: Maybe String -> Expr -> m (Binding, Expr)
+
+-- TODO: MonadEnv to handle global context (and provide a show function)
+-- TODO: CoreM to handle local context (and provide a show function)

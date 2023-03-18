@@ -10,7 +10,9 @@ toSubscriptDigits :: Int -> String
 toSubscriptDigits = map (chr . (\x -> x - ord '0' + ord '₀') . ord) . show
 
 ofSubscriptDigits :: String -> Int
-ofSubscriptDigits = read . map (chr . (\x -> x - ord '₀' + ord '0') . ord)
+ofSubscriptDigits = readOpt . map (chr . (\x -> x - ord '₀' + ord '0') . ord)
+  where readOpt "" = -1
+        readOpt x = (read x :: Int)
 
 isSubscriptDigit :: Char -> Bool
 isSubscriptDigit c = ord c >= ord '₀' && ord c <= ord '₉'

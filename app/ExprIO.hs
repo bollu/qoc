@@ -3,6 +3,7 @@ module ExprIO where
 
 import Control.Applicative
 import Data.Either
+import Data.Maybe
 import Data.List
 import Data.Char
 import Expr
@@ -67,6 +68,17 @@ type ParseError = (Loc, String)
 showParseError :: ParseError -> String
 showParseError (loc, msg) = show loc ++ ": " ++ msg
 
+data CharacterClass = CCWord | CCSymbol | CCPunct | CCSpace
+  deriving (Show, Eq)
+
+charClass :: Char -> CharacterClass
+charClass c
+  | c == '?' = CCWord
+  | isAlphaNum c = CCWord
+  | isSpace c = CCSpace
+  | isPunctuation c = CCPunct
+  | otherwise = CCSymbol
+
 -- Naming: "ps" is a ParserState
 data ParserState = ParserState {
   -- | Current location
@@ -77,6 +89,8 @@ data ParserState = ParserState {
   -- | characters on the current line
   psMinimumIndent :: Int,
   psIndentFinished :: Bool,
+  -- | Class of the previous character (for class boundaries)
+  psPreviousCharClass :: CharacterClass,
   -- | Stack of parse errors (most recent one first)
   psErrors :: [ParseError]
 }
@@ -85,6 +99,7 @@ instance Show ParserState where
   show ps =
     "--- Parser state at " ++ show (psLoc ps) ++ " (indent " ++
     show (psMinimumIndent ps) ++ ", " ++ show (psIndentFinished ps) ++
+    show ") (last class: " ++ show (psPreviousCharClass ps) ++
     ")\n--- Remaining text:\n" ++ psInput ps ++ "\n--- Errors:" ++
     (if length (psErrors ps) == 0
      then " (none)\n"
@@ -97,6 +112,7 @@ psInitialString input =
       psInput = input,
       psMinimumIndent = 0,
       psIndentFinished = False,
+      psPreviousCharClass = CCSpace,
       psErrors = []
     }
 
@@ -117,7 +133,8 @@ psAdvanceChar ps@(ParserState { psInput = [] }) = ps
 psAdvanceChar ps@(ParserState { psInput = (c:input) }) =
   ps { psLoc = locAdvance c (psLoc ps),
        psInput = input,
-       psIndentFinished = psIndentFinished ps || (c /= ' ') }
+       psIndentFinished = psIndentFinished ps || (c /= ' '),
+       psPreviousCharClass = charClass c }
 
 psAdvanceN :: Int -> ParserState -> ParserState
 psAdvanceN n ps = iterate psAdvanceChar ps !! n
@@ -129,7 +146,10 @@ psAdvanceToEOL ps =
   let hadNonWS = any (/= ' ') endOfLine in
   ps { psLoc = newLoc,
        psInput = nextLine,
-       psIndentFinished = psIndentFinished ps || hadNonWS }
+       psIndentFinished = psIndentFinished ps || hadNonWS,
+       psPreviousCharClass =
+         if null endOfLine then psPreviousCharClass ps
+         else charClass (last endOfLine) }
 
 -- The indent requirement is met unless we have a non-whitespace character on a
 -- column lower than psMinimumIndent. Comments are whitespace.
@@ -235,6 +255,13 @@ instance Alternative Parser where
 ## Lexical elements
 -}
 
+classBoundary :: Parser ()
+classBoundary = Parser $ \ps ->
+  let next_class = fromMaybe CCSpace (charClass <$> listToMaybe (psInput ps)) in
+  if next_class /= psPreviousCharClass ps
+  then resultEmptyToken () ps
+  else resultGenericError ps
+
 singleChar :: Char -> Parser ()
 singleChar c = Parser $ \ps ->
   if psEOF ps then
@@ -244,8 +271,8 @@ singleChar c = Parser $ \ps ->
   else
     resultTokenBetween () ps $ psAdvanceChar ps
 
-keyword :: String -> Parser ()
-keyword kw = Parser $ \ps ->
+fixedString :: String -> Parser ()
+fixedString kw = Parser $ \ps ->
   if psEOF ps then
     resultError ("expected '" ++ kw ++ "', found EOF") ps
   else if not (kw `isPrefixOf` psInput ps) then
@@ -253,14 +280,18 @@ keyword kw = Parser $ \ps ->
   else
     resultTokenBetween () ps $ psAdvanceN (length kw) ps
 
+keyword :: String -> Parser ()
+keyword kw = fixedString kw <* classBoundary
+
 -- Identifiers
--- ident = \w[\w0-9₀-₉_]*|_[\w0-9₀-₉_]+   (where \w is Data.Char.isAlpha)
+-- ident = \w[\w0-9₀-₉_]*|_[\w0-9?₀-₉_]+   (where \w is Data.Char.isAlpha)
 
 identValidLeading :: Char -> Bool
 identValidLeading c = isAlpha c
 
 identValidTrailing :: Char -> Bool
-identValidTrailing c = isAlphaNum c || isSubscriptDigit c || (c == '_')
+identValidTrailing c =
+  isAlphaNum c || isSubscriptDigit c || (c == '_') || (c == '?')
 
 identAux :: String -> Maybe String
 identAux "" = Nothing
@@ -298,6 +329,9 @@ exprFun =
   keyword "fun" >> binding >>= (\b ->
   keyword "=>" >> expr >>= (\e ->
   return $ mkFun b e))
+
+-- fun (x: Int) => x
+-- fun x => x
 
 expr :: Parser Expr
 expr =

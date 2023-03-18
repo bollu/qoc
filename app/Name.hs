@@ -58,5 +58,5 @@ instance Show LocalName where
 
 localNameFromString :: String -> LocalName
 localNameFromString s =
-  let (r_name, r_digits) = span isSubscriptDigit (reverse s) in
+  let (r_digits, r_name) = span isSubscriptDigit (reverse s) in
   LocalName (reverse r_name, ofSubscriptDigits $ reverse r_digits)
