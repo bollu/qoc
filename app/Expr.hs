@@ -13,6 +13,11 @@ module Expr (
   mkFun,
   mkFuns,
   mkLocal,
+  splitForall,
+  forallName,
+  splitFun,
+  funName,
+  MonadTerm(..),
 ) where
 
 import Control.Monad
@@ -76,10 +81,10 @@ showExpr _ (Sort l) = showString "Type " . showsPrec 2 l
 showExpr _ (e₁ :$ e₂) = showsPrec 3 e₁ . showString " " . showsPrec 3 e₂
 showExpr p e@(b@(Binding n _) :-> _) =
   showString "forall " . showString (show b) . showString ", " .
-  showsPrec 2 (snd $ fromJust $ splitForall n e)
+  showsPrec 2 (snd . fromJust $ splitForall e n)
 showExpr p e@(b@(Binding n _) :=> _) =
   showString "fun " . showString (show b) . showString " => " .
-  showsPrec 2 (snd $ fromJust $ splitFun n e)
+  showsPrec 2 (snd . fromJust $ splitFun e n)
 
 instance Show Expr where
   showsPrec = showExpr
@@ -131,10 +136,14 @@ mkForalls bindings body = foldl (\expr b -> mkForall b expr) body bindings
 
 -- `splitForall name (forall x, e)` introduces x as `name`. This is a low-level
 -- function. The caller must check that `name` is available.
-splitForall :: MonadPlus m => LocalName -> Expr -> m (Binding, Expr)
-splitForall name (Binding _ e :-> s) =
+splitForall :: MonadPlus m => Expr -> LocalName -> m (Binding, Expr)
+splitForall (Binding _ e :-> s) name =
   return (Binding name e, instantiate (Free name) s)
-splitForall name _ = mzero
+splitForall _ name = mzero
+
+forallName :: MonadPlus m => Expr -> m LocalName
+forallName (Binding name _ :-> _) = return name
+forallName _ = mzero
 
 mkFun :: Binding -> Expr -> Expr
 mkFun b@(Binding name _) body = b :=> abstract name body
@@ -144,19 +153,31 @@ mkFuns bindings body = foldl (\expr b -> mkFun b expr) body bindings
 
 -- `splitFun name (fun x => e)` introduces x as `name`. This is a low-level
 -- function. The caller must check that `name` is available.
-splitFun :: MonadPlus m => LocalName -> Expr -> m (Binding, Expr)
-splitFun name (Binding _ e :=> s) =
+splitFun :: MonadPlus m => Expr -> LocalName -> m (Binding, Expr)
+splitFun (Binding _ e :=> s) name =
   return (Binding name e, instantiate (Free name) s)
-splitFun name _ = mzero
+splitFun _ name = mzero
+
+funName :: MonadPlus m => Expr -> m LocalName
+funName (Binding name _ :=> _) = return name
+funName _ = mzero
 
 mkLocal :: LocalName -> Expr
 mkLocal = Free
 
 -- TODO: | Should have a stack of introduced binders
 -- TODO: | Think harder about the operations to put there
-class (MonadPlus m) => MonadTerm m where
-  forallTelescoping :: Maybe String -> Expr -> ([Binding] -> Expr -> m a) -> m a
-  lambdaTelescoping :: Maybe String -> Expr -> ([Binding] -> Expr -> m a) -> m a
+class MonadTerm m where
+  forallTelescoping ::
+      [Maybe String] -- ^ proposed names for binders
+   -> Expr -- ^ expression we are telescoping into
+   -> ([Binding] -> Expr -> m a) -- ^ kontinuation
+   -> m a
+  funTelescoping ::
+      [Maybe String] -- ^ proposed names for binders
+   -> Expr -- ^ expression we are telescoping into
+   -> ([Binding] -> Expr -> m a) -- ^ kontinuation
+   -> m a
   -- introForall :: Maybe String -> Expr -> m (Binding, Expr)
   -- introFun :: Maybe String -> Expr -> m (Binding, Expr)
 

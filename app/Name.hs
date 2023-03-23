@@ -49,6 +49,7 @@ instance Show ResolvedName where
    subscript using Unicode characters, and the string is not allowed to end
    with a Unicode subscript digit. Any negative integer means no suscript. -}
 newtype LocalName = LocalName (String, Int)
+  deriving (Ord)
 
 instance Eq LocalName where
   LocalName (x, i) == LocalName (y, j) = x == y && ((i < 0 && j < 0) || i == j)
