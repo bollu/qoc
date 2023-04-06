@@ -1,5 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
-module ExprIO where 
+module ExprIO(parseExpr, ParseResult(..)) where
 
 import Control.Applicative
 import Data.Either
@@ -99,7 +99,7 @@ instance Show ParserState where
   show ps =
     "--- Parser state at " ++ show (psLoc ps) ++ " (indent " ++
     show (psMinimumIndent ps) ++ ", " ++ show (psIndentFinished ps) ++
-    show ") (last class: " ++ show (psPreviousCharClass ps) ++
+    ") (last class: " ++ show (psPreviousCharClass ps) ++
     ")\n--- Remaining text:\n" ++ psInput ps ++ "\n--- Errors:" ++
     (if length (psErrors ps) == 0
      then " (none)\n"
@@ -251,6 +251,30 @@ instance Alternative Parser where
   -- <|> tries both options in the given order
   p₁ <|> p₂ = Parser $ \sp -> runParser p₁ sp <> runParser p₂ sp
 
+-- Kleene star (repeats p zero or more times)
+star :: Parser α -> Parser [α]
+star p =
+  (p >>= (\v -> star p >>= (\l -> return $ v:l)))
+  <|> return []
+
+-- Plus (repeats p one or more times)
+plus :: Parser α -> Parser [α]
+plus p = p >>= (\v -> star p >>= (\l -> return $ v:l))
+
+-- Maybe (p zero or one time)
+maybe :: Parser α -> Parser (Maybe α)
+maybe p = (p >>= return . Just) <|> return Nothing
+
+-- Kleene star with separator
+starSepBy :: Parser α -> Parser β -> Parser [α]
+starSepBy p sep =
+  (p >>= (\v -> sep >> starSepBy p sep >>= (\l -> return $ v:l)))
+  <|> return []
+
+-- Plus with separator
+plusSepBy :: Parser α -> Parser β -> Parser [α]
+plusSepBy p sep = p >>= (\v -> star (sep >> p) >>= (\l -> return $ v:l))
+
 {-
 ## Lexical elements
 -}
@@ -319,25 +343,43 @@ binding :: Parser Binding
 binding =
     keyword "(" >> ident >>= (\i ->
     keyword ":" >> expr >>= (\t ->
-    return $ Binding (localNameFromString i) t))
+    keyword ")" >>
+    return (Binding (localNameFromString i) t)))
+
+telescope :: Parser [Binding]
+telescope = plus binding
 
 exprParen :: Parser Expr
 exprParen = keyword "(" >> expr >>= (\x -> keyword ")" >> return x)
 
 exprFun :: Parser Expr
 exprFun =
-  keyword "fun" >> binding >>= (\b ->
+  keyword "fun" >> telescope >>= (\bs ->
   keyword "=>" >> expr >>= (\e ->
-  return $ mkFun b e))
+  return $ mkFuns bs e))
+
+exprForall :: Parser Expr
+exprForall =
+  keyword "forall" >> telescope >>= (\bs ->
+  keyword "," >> expr >>= (\e ->
+  return $ mkForalls bs e))
+
+exprApp :: Parser Expr
+exprApp =
+  expr >>= (\e ->
+  expr >>= (\f ->
+  return $ mkApp e f))
 
 -- fun (x: Int) => x
 -- fun x => x
 
 expr :: Parser Expr
 expr =
-  (ident >>= return . mkLocal . localNameFromString)
-  <|> exprParen
+      exprParen
   <|> exprFun
+  <|> exprForall
+--  <|> exprApp -- obvious infinite loop
+  <|> (ident >>= return . mkLocal . localNameFromString)
   <|> parserError "invalid expression"
 
 -- TODO
@@ -347,11 +389,5 @@ expr =
 ## Tests
 -}
 
-parserTwoIdents :: Parser (String, String)
-parserTwoIdents = do
-  n1 <- ident
-  n2 <- ident
-  return (n1, n2)
-
-test :: String -> ParseResult (String, String)
-test = runParser parserTwoIdents . psInitialString
+parseExpr :: String -> ParseResult Expr
+parseExpr = runParser expr . psInitialString

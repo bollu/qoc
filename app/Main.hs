@@ -6,6 +6,7 @@ import ExprIO
 import CaseTree
 import CoreM
 import Name
+import System.IO
 import Control.Monad.Trans
 
 fvar :: Expr
@@ -23,6 +24,21 @@ id_ = mkFun (Binding (localNameFromString "α") (mkSort (Succ Zero)))
       (mkFun (Binding (localNameFromString "x") (mkLocal (localNameFromString "α")))
        (mkLocal (localNameFromString "x")))
 
+getExpr :: IO ()
+getExpr = do
+  putStr "\x1b[36m@>\x1b[0m "
+  hFlush stdout
+  l <- getLine
+  case parseExpr l of
+    ParseResult (Just e, _) -> print e
+    ParseResult (Nothing, ps) -> print ps
+
+repl :: IO ()
+repl = getExpr >> repl
+
 main :: IO ()
 main = runCoreM do
+  lift $ putStrLn "### Example expression ###"
   prettyExpr 0 id_ <*> pure "" >>= (lift . putStrLn)
+  lift $ putStrLn "### Expression echo REPL ###"
+  lift repl

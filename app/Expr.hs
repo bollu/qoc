@@ -26,6 +26,7 @@ module Expr (
   mkLocal,
   mkConst,
   mkSort,
+  mkApp,
   -- Expression destruction
   splitForall,
   forallName,
@@ -188,6 +189,9 @@ mkConst = Const
 
 mkSort :: Level -> Expr
 mkSort = Sort
+
+mkApp :: Expr -> Expr -> Expr
+mkApp = (:$)
 
 -- TODO: | Should have a stack of introduced binders
 -- TODO: | Think harder about the operations to put there
