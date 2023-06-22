@@ -27,6 +27,7 @@ module Expr (
   mkConst,
   mkSort,
   mkApp,
+  mkApps,
   -- Expression destruction
   splitForall,
   forallName,
@@ -151,7 +152,7 @@ mkForall :: Binding -> Expr -> Expr
 mkForall b@(Binding name _) body = b :-> abstract name body
 
 mkForalls :: Bindings -> Expr -> Expr
-mkForalls bindings body = foldl (\expr b -> mkForall b expr) body bindings
+mkForalls bindings body = foldr mkForall body bindings
 
 -- `splitForall name (forall x, e)` introduces x as `name`. This is a low-level
 -- function. The caller must check that `name` is available.
@@ -168,7 +169,7 @@ mkFun :: Binding -> Expr -> Expr
 mkFun b@(Binding name _) body = b :=> abstract name body
 
 mkFuns :: Bindings -> Expr -> Expr
-mkFuns bindings body = foldl (\expr b -> mkFun b expr) body bindings
+mkFuns bindings body = foldr mkFun body bindings
 
 -- `splitFun name (fun x => e)` introduces x as `name`. This is a low-level
 -- function. The caller must check that `name` is available.
@@ -192,6 +193,9 @@ mkSort = Sort
 
 mkApp :: Expr -> Expr -> Expr
 mkApp = (:$)
+
+mkApps :: [Expr] -> Expr
+mkApps = foldl1 mkApp
 
 -- TODO: | Should have a stack of introduced binders
 -- TODO: | Think harder about the operations to put there

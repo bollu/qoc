@@ -8,6 +8,7 @@ import CoreM
 import Name
 import System.IO
 import Control.Monad.Trans
+import Parser.Lexer
 
 fvar :: Expr
 fvar = mkLocal (localNameFromString "x")
@@ -24,16 +25,26 @@ id_ = mkFun (Binding (localNameFromString "α") (mkSort (Succ Zero)))
       (mkFun (Binding (localNameFromString "x") (mkLocal (localNameFromString "α")))
        (mkLocal (localNameFromString "x")))
 
-getExpr :: IO ()
-getExpr = do
-  putStr "\x1b[36m@>\x1b[0m "
-  hFlush stdout
-  l <- getLine
-  case parseExpr l of
-    ParseResult (Just e, _) -> print e
-    ParseResult (Nothing, ps) -> print ps
+dumpLexer :: LexerState -> IO LexerState
+dumpLexer ls =
+  if lsEOF ls then return ls else
+  let (token, ls') = nextToken ls in
+  print token >> dumpLexer ls'
 
-repl :: IO ()
+getExpr :: CoreM ()
+getExpr = do
+  lift $ putStr "\x1b[36m@>\x1b[0m "
+  lift $ hFlush stdout
+  l <- lift getLine
+  case parseExpr l of
+    ParseResult (Just t, ps) -> do
+      str <- prettyExpr 0 (token t)
+      lift $ putStrLn (str "")
+    ParseResult (Nothing, ps) -> lift $ print ps
+  let ls = lsStartString l
+  lift $ (dumpLexer ls >>= print)
+
+repl :: CoreM ()
 repl = getExpr >> repl
 
 main :: IO ()
@@ -41,4 +52,4 @@ main = runCoreM do
   lift $ putStrLn "### Example expression ###"
   prettyExpr 0 id_ <*> pure "" >>= (lift . putStrLn)
   lift $ putStrLn "### Expression echo REPL ###"
-  lift repl
+  repl

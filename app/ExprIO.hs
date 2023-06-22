@@ -1,5 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
-module ExprIO(parseExpr, ParseResult(..)) where
+module ExprIO(parseExpr, Token(..), ParseResult(..)) where
 
 import Control.Applicative
 import Data.Either
@@ -333,11 +333,18 @@ ident = Parser $ \ps ->
     Nothing ->
       resultError "expected identifier" ps
     Just name ->
-      resultTokenBetween name ps $ psAdvanceN (length name) ps
+      if name `elem` language_keywords then
+        resultError "expected identifier" ps
+      else
+        resultTokenBetween name ps $ psAdvanceN (length name) ps
 
 {-
 ## Syntactic elements
 -}
+
+language_keywords :: [String]
+language_keywords =
+  ["fun", "forall", "Sort", "Type", "Prop"]
 
 binding :: Parser Binding
 binding =
@@ -364,23 +371,22 @@ exprForall =
   keyword "," >> expr >>= (\e ->
   return $ mkForalls bs e))
 
-exprApp :: Parser Expr
-exprApp =
+{- exprArrow :: Parser Expr
+exprArrow =
   expr >>= (\e ->
-  expr >>= (\f ->
-  return $ mkApp e f))
+  keyword "->" >> expr >>= (\f ->
+  return $ mkForall _ _)) -}
 
--- fun (x: Int) => x
--- fun x => x
-
-expr :: Parser Expr
-expr =
+exprNoApp :: Parser Expr
+exprNoApp =
       exprParen
   <|> exprFun
   <|> exprForall
---  <|> exprApp -- obvious infinite loop
   <|> (ident >>= return . mkLocal . localNameFromString)
   <|> parserError "invalid expression"
+
+expr :: Parser Expr
+expr = mkApps <$> plus exprNoApp
 
 -- TODO
 
