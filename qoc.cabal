@@ -26,10 +26,11 @@ executable qoc
 
     -- Modules included in this executable, other than Main.
     other-modules:    Expr Name ExprIO CaseTree Util CoreM RList
+                      Parser.Lexer
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
-    build-depends:    base ^>=4.14.3.0
+    build-depends:    base ^>=4.16.4.0
                       , containers
                       , mtl
                       , monad-loops

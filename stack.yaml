@@ -18,7 +18,7 @@
 # resolver: ./custom-snapshot.yaml
 # resolver: https://example.com/snapshots/2018-01-01.yaml
 resolver:
-  url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/18/28.yaml
+  compiler: ghc-9.2.8
 
 # User packages to be built.
 # Various formats can be used as shown in the example below.
@@ -37,6 +37,7 @@ packages:
 #
 extra-deps:
 - dear-imgui-2.1.3@sha256:3c00ebf59e98c049549c3c24436a389191f92f14726c406e640e0cc3481c8924,8691
+- monad-loops-0.4.3@sha256:ada4f1295ece07f9a7398bc5b40c4532f95a733a8604d2a2f57f05f878766df2,1751
 
 # - acme-missiles-0.3
 # - git: https://github.com/commercialhaskell/stack.git
