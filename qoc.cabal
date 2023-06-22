@@ -34,5 +34,6 @@ executable qoc
                       , containers
                       , mtl
                       , monad-loops
+                      , modp
     hs-source-dirs:   app
     default-language: Haskell2010

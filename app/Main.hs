@@ -9,6 +9,7 @@ import Name
 import System.IO
 import Control.Monad.Trans
 import Parser.Lexer
+import qualified Modp.Lexer
 
 fvar :: Expr
 fvar = mkLocal (localNameFromString "x")
