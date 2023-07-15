@@ -113,5 +113,16 @@ makeQocLexer =
          tLiteral "Sort",
          tLiteral "Type",
          tLiteral "Prop",
+         tLiteral "(",
+         tLiteral ")",
+         tLiteral ":",
+         tLiteral "=>",
          tIdent] in
   l3
+
+-- Debugging functions
+
+qocLexerDumpString :: String -> IO ()
+qocLexerDumpString string =
+  let ls = ML.lsStartString "qoc" string in
+  ML.dumpLexer makeQocLexer ls >>= print

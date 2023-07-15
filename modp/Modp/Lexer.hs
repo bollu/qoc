@@ -220,7 +220,7 @@ eligibleTokens l ls = aux (lxScopes l) (lsScopes ls)
 
 nextToken :: Lexer -> LexerState -> (Token, LexerState)
 nextToken l ls =
-  if null (lsInput ls) then
+  if lsEOF ls then
     (("", ""), ls)
   else
     let options = mapMaybe ($ ls) (eligibleTokens l ls) in
@@ -229,3 +229,26 @@ nextToken l ls =
       [] -> nextToken l (lsRecoverError ls)
       (res:_) -> res
 
+allTokens :: Lexer -> LexerState -> ([Token], LexerState)
+allTokens l ls =
+  if lsEOF ls then
+    ([], ls)
+  else
+    let (t, ls') = nextToken l ls in
+    let (ts, ls'') = allTokens l ls' in
+    (t:ts, ls'')
+
+{-
+## Debugging functions
+-}
+
+dumpLexer :: Lexer -> LexerState -> IO LexerState
+dumpLexer l ls =
+  if lsEOF ls then
+    return ls
+  else
+    let (token, ls') = nextToken l ls in do
+      putStr $ show $ lsLoc ls
+      putStr " "
+      print token
+      dumpLexer l ls'

@@ -9,7 +9,7 @@ import Name
 import System.IO
 import Control.Monad.Trans
 import Parser.Lexer
-import qualified Modp.Lexer as ML
+import Parser.Parser
 
 fvar :: Expr
 fvar = mkLocal (localNameFromString "x")
@@ -26,17 +26,8 @@ id_ = mkFun (Binding (localNameFromString "α") (mkSort (Succ Zero)))
       (mkFun (Binding (localNameFromString "x") (mkLocal (localNameFromString "α")))
        (mkLocal (localNameFromString "x")))
 
-dumpLexer :: ML.Lexer -> ML.LexerState -> IO ML.LexerState
-dumpLexer l ls =
-  if ML.lsEOF ls then return ls else
-  let (token, ls') = ML.nextToken l ls in do
-    putStr $ show $ ML.lsLoc ls
-    putStr " "
-    print token
-    dumpLexer l ls'
-
-getExpr :: ML.Lexer -> CoreM ()
-getExpr lexer = do
+getExpr :: CoreM ()
+getExpr = do
   lift $ putStr "\x1b[36m@>\x1b[0m "
   lift $ hFlush stdout
   l <- lift getLine
@@ -45,16 +36,16 @@ getExpr lexer = do
       str <- prettyExpr 0 (token t)
       lift $ putStrLn (str "")
     ParseResult (Nothing, ps) -> lift $ print ps
-  let ls = ML.lsStartString "qoc" l
-  lift $ (dumpLexer lexer ls >>= print)
 
-repl :: ML.Lexer -> CoreM ()
-repl lexer = getExpr lexer >> repl lexer
+  lift $ qocLexerDumpString l
+  lift $ qocParserDumpString l
+
+repl :: CoreM ()
+repl = getExpr >> repl
 
 main :: IO ()
 main = runCoreM do
-  let lexer = makeQocLexer
   lift $ putStrLn "### Example expression ###"
   prettyExpr 0 id_ <*> pure "" >>= (lift . putStrLn)
   lift $ putStrLn "### Expression echo REPL ###"
-  repl lexer
+  repl

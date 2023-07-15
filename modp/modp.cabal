@@ -7,7 +7,7 @@ author:             Siddharth Bhat
 maintainer:         siddu.druid@gmail.com
 
 library
-    exposed-modules:  Modp.Lexer
+    exposed-modules:  Modp.Lexer Modp.Parser
     build-depends:    base ^>=4.16.4.0
                       , containers
                       , mtl
