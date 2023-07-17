@@ -2,7 +2,6 @@
 
 module Main where
 import Expr
-import ExprIO
 import CaseTree
 import CoreM
 import Name
@@ -31,13 +30,7 @@ getExpr = do
   lift $ putStr "\x1b[36m@>\x1b[0m "
   lift $ hFlush stdout
   l <- lift getLine
-  case parseExpr l of
-    ParseResult (Just t, ps) -> do
-      str <- prettyExpr 0 (token t)
-      lift $ putStrLn (str "")
-    ParseResult (Nothing, ps) -> lift $ print ps
-
-  lift $ qocLexerDumpString l
+  --lift $ qocLexerDumpString l
   lift $ qocParserDumpString l
 
 repl :: CoreM ()
