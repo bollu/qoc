@@ -90,6 +90,8 @@ qocParserDumpString string = do
     MP.psCache = M.empty
   }
   let (r, _) = runState (MP.parse tokens' "term") ps
+  putStrLn "--- Grammar ---"
+  print makeQocGrammar
   putStrLn "--- Parse tree (term) ---"
   case r of
     Nothing -> print "Nothing"
