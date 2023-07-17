@@ -41,12 +41,12 @@ precedence level in recursive occurrences.
   expr@0 ::= expr@1 "^" expr@0
   expr@1 ::= expr@1 "*" expr@2 | expr@1 "/" expr@2 | expr@1 "%" expr@2
   expr@2 ::= expr@2 "+" expr@3 | expr@2 "-" expr@3
-  expr@3 ::= #integer | "(" expr@0 ")"
+  expr@3 ::= %integer | "(" expr@0 ")"
 
 This approach is similar to having new symbols "expr_0", "expr_1", each
 included in its predecessor, except that:
 
-1. Each level is automatically included in lower levels: #integer would also
+1. Each level is automatically included in lower levels: %integer would also
    parse as an expr@1.
 2. These inclusion rules are not materialized in parse trees, making them
    easier to traverse and less dependent on the number of levels.
@@ -63,14 +63,14 @@ there are more thorough approach such as the one used by OMeta [1].
 
 We support "direct" left recursion where a symbol directly refers to itself.
 
-  sym ::= sym #integer "!"
+  sym ::= sym %integer "!"
 
 We do not support indirect left recursion where loops go through multiple
 symbols:
 
   /* error */
   sym ::= numbered_sym "!"
-  numbered_sym ::= sym #integer
+  numbered_sym ::= sym %integer
 
 Direct left recursion is rewritten out by the following process. For any symbol
 with base (non-left-recursive) rules b1, ... bn and left-recursive rules
@@ -140,12 +140,13 @@ data PE t s =
 --   1: e f, [name] e f ...)    (associativity: full)
 --   2: e*, e+, e?              (associativity: none)
 --   3: &e, !e                  (associativity: none)
---   atoms: #terminal, nonterminal@prec
-showPE :: (t -> String) -> (s -> String) -> Int -> PE t s -> ShowS
-showPE showT showS = aux
+--   atoms: %terminal, nonterminal@prec
+showsPrecPE :: (t -> String) -> (s -> String) -> Int -> PE t s -> ShowS
+showsPrecPE showT showS = aux
  where
-  aux _ (PETerminal t) = showString ("#" ++ showT t)
-  aux _ (PETerminalPredicated t p) = showString ("#" ++ showT t ++ "[pred.]")
+  aux _ (PETerminal t) = showString ("%" ++ showT t)
+  aux _ (PETerminalPredicated t p) = showString ("%" ++ showT t ++ "[pred.]")
+  aux _ (PELiteral str) = showString (show str)
   aux _ (PENonTerminal s) = showString (showS s)
   aux p (PESequence []) =
     brackets p 1 "(" ")" $
@@ -155,10 +156,10 @@ showPE showT showS = aux
     foldr1 (\f g -> f . showString " " . g) (map (aux 1) es)
   aux p (PESequenceNode s []) =
     brackets p 1 "(" ")" $
-    showString ("[" ++ showS s ++ "] <empty?!>")
+    showString ("#" ++ showS s ++ " <empty?!>")
   aux p (PESequenceNode s es) =
     brackets p 1 "(" ")" $
-    showString ("[" ++ showS s ++ "]") .
+    showString ("#" ++ showS s ++ " ") .
     foldr1 (\f g -> f . showString " " . g) (map (aux 1) es)
   aux p (PEAlternative e f) =
     brackets p 0 "(" ")" $
@@ -171,24 +172,52 @@ showPE showT showS = aux
   brackets p p_ref left right f =
     if p > p_ref then showString left . f . showString right else f
 
+showPE :: (t -> String) -> (s -> String) -> PE t s -> String
+showPE showT showS e = showsPrecPE showT showS 0 e ""
+
 instance (Show t, Show s) => Show (PE t s) where
-  showsPrec = showPE show show
+  showsPrec = showsPrecPE show show
 
 -- Parser Expression Grammar.
 -- The name of the non-terminal also serves as a rule identifier. The list of
 -- rules is implicitly an ordered alternative.
-newtype PEG t s = PEG (M.Map s [PE t s])
-  deriving (Show)
+data PEG t s = PEG {
+  -- | Parsing results associating each expression with a PE.
+  pegRules :: M.Map s [PE t s],
+  -- | Token type for literals, used by the shorthand PETerminal expression.
+  pegLiteralTokenType :: t
+}
 
-emptyPEG :: PEG t s
-emptyPEG = PEG M.empty
+pegEmpty :: t -> PEG t s
+pegEmpty litType = PEG { pegRules = M.empty, pegLiteralTokenType = litType }
 
-getPEGRule :: (Ord s) => PEG t s -> s -> Maybe (PE t s)
-getPEGRule (PEG m) sym = do
-  rules <- M.lookup sym m
+pegGetRule :: (Ord s) => PEG t s -> s -> Maybe (PE t s)
+pegGetRule peg sym = do
+  rules <- M.lookup sym (pegRules peg)
   case rules of
     [] -> Nothing
     _ -> Just $ foldr1 PEAlternative rules
+
+showsPrecPEG :: (t -> String) -> (s -> String) -> Int -> PEG t s -> ShowS
+showsPrecPEG showT showS _ peg =
+  showString "rules:\n" .
+  foldr (.) id (map showRule $ M.toList $ pegRules peg) .
+  showString "literal_token_type:\n" .
+  showString ("  " ++ showT (pegLiteralTokenType peg) ++ "\n")
+  where
+  showRule (sym, rules) =
+    showString ("  " ++ showS sym ++ " ::=\n") .
+    foldr (.) id (map showExpression $ rules)
+  showExpression e =
+    showString "    | " .
+    showsPrecPE showT showS 0 e .
+    showString "\n"
+
+showPEG :: (t -> String) -> (s -> String) -> PEG t s -> String
+showPEG showT showS peg = showsPrecPEG showT showS 0 peg ""
+
+instance (Show t, Show s) => Show (PEG t s) where
+  showsPrec = showsPrecPEG show show
 
 -- TODO: Detect and report left recurion
 
@@ -210,7 +239,7 @@ showParseTreeGen :: (t -> String) -> (s -> String) -> Int ->
 showParseTreeGen showT showS indent tree =
     take (2*indent) (repeat ' ') ++ aux tree
   where aux (ParseTreeAtom (t, str)) =
-          "#" ++ showT t ++ " \"" ++ str ++ "\"\n"
+          "%" ++ showT t ++ " \"" ++ str ++ "\"\n"
         aux (ParseTreeSequence trees) =
           let subs = map (showParseTreeGen showT showS (indent+1)) trees in
           "[]\n" ++ concat subs
@@ -254,7 +283,7 @@ parse tokens sym = do
     Just r -> return r
     Nothing -> do
       ps <- get
-      r <- case getPEGRule (psGrammar ps) sym of
+      r <- case pegGetRule (psGrammar ps) sym of
              Nothing -> return Nothing
              Just pe -> parsePE tokens pe
       updateCache tokens sym r
@@ -272,8 +301,15 @@ parsePE tokens (PETerminalPredicated tID predicate) =
   case tokens of
     (tok@(tID', value)):tokens | tID' == tID && predicate value ->
       return $ Just (ParseTreeAtom tok, tokens)
-    _ ->
-      return Nothing
+    _ -> return Nothing
+
+parsePE tokens (PELiteral str) = do
+  ps <- get
+  case tokens of
+    (tok@(tID, value)):tokens
+      | tID == pegLiteralTokenType (psGrammar ps) && value == str ->
+          return $ Just (ParseTreeAtom tok, tokens)
+    _ -> return Nothing
 
 parsePE tokens (PENonTerminal sym) =
   parse tokens sym

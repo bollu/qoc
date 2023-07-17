@@ -13,31 +13,28 @@ type Grammar = MP.PEG String String
 
 -- Grammar rules
 
-pLiteral :: String -> PE
-pLiteral name = MP.PETerminalPredicated "literal" (== name)
-
 _sort = [
-  [pLiteral "Prop"],
-  [pLiteral "Type", MP.PEOptional (MP.PENonTerminal "universe")]]
+  [MP.PELiteral "Prop"],
+  [MP.PELiteral "Type", MP.PEOptional (MP.PENonTerminal "universe")]]
 
 _universe = [
   [MP.PETerminal "int"],
-  [pLiteral "_"]]
+  [MP.PELiteral "_"]]
 
 _binding = [
   [MP.PETerminal "ident"],
-  [pLiteral "(", MP.PETerminal "ident", pLiteral ":",
-   MP.PENonTerminal "term", pLiteral ")"]]
+  [MP.PELiteral "(", MP.PETerminal "ident", MP.PELiteral ":",
+   MP.PENonTerminal "term", MP.PELiteral ")"]]
 
 _term_atom = [
   [MP.PETerminal "ident"],
-  [pLiteral "(", MP.PENonTerminal "term", pLiteral ")"]]
+  [MP.PELiteral "(", MP.PENonTerminal "term", MP.PELiteral ")"]]
 
 _term_trailing = [
-  [pLiteral "fun", MP.PEPlus (MP.PENonTerminal "binding"), pLiteral "=>",
-   MP.PENonTerminal "term"],
-  [pLiteral "forall", MP.PEPlus (MP.PENonTerminal "binding"), pLiteral ",",
-   MP.PENonTerminal "term"],
+  [MP.PELiteral "fun", MP.PEPlus (MP.PENonTerminal "binding"),
+   MP.PELiteral "=>", MP.PENonTerminal "term"],
+  [MP.PELiteral "forall", MP.PEPlus (MP.PENonTerminal "binding"),
+   MP.PELiteral ",", MP.PENonTerminal "term"],
   [MP.PENonTerminal "sort"]]
 
 _term = [
@@ -47,7 +44,7 @@ _term = [
 
 {-
 sort          ::= "Prop" | "Type" universe?
-universe      ::= #int | "_"
+universe      ::= %int | "_"
 binding       ::= ident | "(" ident ":" term ")"
 term_atom     ::= ident | "(" term ")"
 term_trailing ::= "fun" binding+ "=>" term | "forall" binding+ "," term
@@ -64,14 +61,17 @@ makeRules sym rules = (sym, map aux rules)
         aux rs = MP.PESequenceNode sym rs
 
 makeQocGrammar :: Grammar
-makeQocGrammar = MP.PEG $ M.fromList [
-    makeRules "sort" _sort,
-    makeRules "universe" _universe,
-    makeRules "binding" _binding,
-    makeRules "term_atom" _term_atom,
-    makeRules "term_trailing" _term_trailing,
-    makeRules "term" _term
-  ]
+makeQocGrammar = MP.PEG {
+  MP.pegRules = M.fromList [
+      makeRules "sort" _sort,
+      makeRules "universe" _universe,
+      makeRules "binding" _binding,
+      makeRules "term_atom" _term_atom,
+      makeRules "term_trailing" _term_trailing,
+      makeRules "term" _term
+    ],
+  MP.pegLiteralTokenType = "literal"
+}
 
 isUsefulToken :: ML.Token -> Bool
 isUsefulToken ("ws", _) = False
@@ -91,7 +91,7 @@ qocParserDumpString string = do
   }
   let (r, _) = runState (MP.parse tokens' "term") ps
   putStrLn "--- Grammar ---"
-  print makeQocGrammar
+  putStr $ MP.showPEG id id makeQocGrammar
   putStrLn "--- Parse tree (term) ---"
   case r of
     Nothing -> print "Nothing"
