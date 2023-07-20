@@ -119,7 +119,7 @@ data PE t s =
   -- | parser expression defining a symbol.
   PESequenceNode s [PE t s] |
   -- | Ordered alternative.
-  PEAlternative (PE t s) (PE t s) |
+  PEAlternative [PE t s] |
   -- | A sequence of 0 or more matches of a sub-expression.
   PEStar (PE t s) |
   -- | A sequence of 1 or more matches of a sub-expression.
@@ -148,22 +148,21 @@ showsPrecPE showT showS = aux
   aux _ (PETerminalPredicated t p) = showString ("%" ++ showT t ++ "[pred.]")
   aux _ (PELiteral str) = showString (show str)
   aux _ (PENonTerminal s) = showString (showS s)
-  aux p (PESequence []) =
-    brackets p 1 "(" ")" $
-    showString ("<empty?!>")
+  aux _ (PESequence []) = showString "<empty sequence>"
   aux p (PESequence es) =
     brackets p 1 "(" ")" $
     foldr1 (\f g -> f . showString " " . g) (map (aux 1) es)
   aux p (PESequenceNode s []) =
     brackets p 1 "(" ")" $
-    showString ("#" ++ showS s ++ " <empty?!>")
+    showString ("#" ++ showS s ++ " <empty sequence>")
   aux p (PESequenceNode s es) =
     brackets p 1 "(" ")" $
     showString ("#" ++ showS s ++ " ") .
     foldr1 (\f g -> f . showString " " . g) (map (aux 1) es)
-  aux p (PEAlternative e f) =
+  aux _ (PEAlternative []) = showString "<empty alternative>"
+  aux p (PEAlternative es) =
     brackets p 0 "(" ")" $
-    aux 0 e . showString " | " . aux 0 f
+    foldr1 (\f g -> f . showString " | " . g) (map (aux 0) es)
   aux p (PEStar     e) = brackets p 2 "(" ")" $ aux 3 e . showString "*"
   aux p (PEPlus     e) = brackets p 2 "(" ")" $ aux 3 e . showString "+"
   aux p (PEOptional e) = brackets p 2 "(" ")" $ aux 3 e . showString "?"
@@ -179,11 +178,9 @@ instance (Show t, Show s) => Show (PE t s) where
   showsPrec = showsPrecPE show show
 
 -- Parser Expression Grammar.
--- The name of the non-terminal also serves as a rule identifier. The list of
--- rules is implicitly an ordered alternative.
 data PEG t s = PEG {
-  -- | Parsing results associating each expression with a PE.
-  pegRules :: M.Map s [PE t s],
+  -- | Parsing results associating each symbol with a PE.
+  pegRules :: M.Map s (PE t s),
   -- | Token type for literals, used by the shorthand PETerminal expression.
   pegLiteralTokenType :: t
 }
@@ -192,11 +189,7 @@ pegEmpty :: t -> PEG t s
 pegEmpty litType = PEG { pegRules = M.empty, pegLiteralTokenType = litType }
 
 pegGetRule :: (Ord s) => PEG t s -> s -> Maybe (PE t s)
-pegGetRule peg sym = do
-  rules <- M.lookup sym (pegRules peg)
-  case rules of
-    [] -> Nothing
-    _ -> Just $ foldr1 PEAlternative rules
+pegGetRule peg sym = M.lookup sym (pegRules peg)
 
 showsPrecPEG :: (t -> String) -> (s -> String) -> Int -> PEG t s -> ShowS
 showsPrecPEG showT showS _ peg =
@@ -205,9 +198,13 @@ showsPrecPEG showT showS _ peg =
   showString "literal_token_type:\n" .
   showString ("  " ++ showT (pegLiteralTokenType peg) ++ "\n")
   where
-  showRule (sym, rules) =
+  showRule (sym, PEAlternative rules) =
     showString ("  " ++ showS sym ++ " ::=\n") .
     foldr (.) id (map showExpression $ rules)
+  showRule (sym, rule) =
+    showString ("  " ++ showS sym ++ " ::= ") .
+    showsPrecPE showT showS 0 rule .
+    showString "\n"
   showExpression e =
     showString "    | " .
     showsPrecPE showT showS 0 e .
@@ -322,11 +319,8 @@ parsePE tokens (PESequenceNode sym es) = do
   rs <- parsePEs tokens es
   return $ (\(trees, tokens') -> (ParseTreeNode sym trees, tokens')) <$> rs
 
-parsePE tokens (PEAlternative e f) = do
-  r1 <- parsePE tokens e
-  case r1 of
-    Nothing -> parsePE tokens f
-    _ -> return r1
+parsePE tokens (PEAlternative es) =
+  parsePEsAlternative tokens es
 
 parsePE tokens (PEStar e) = do
   (trees, tokens') <- parsePERepeatedly tokens e
@@ -376,3 +370,13 @@ parsePEs tokens (e:es) = do
         Nothing -> return Nothing
         Just (trees, tokens'') ->
           return $ Just (tree:trees, tokens'')
+
+parsePEsAlternative :: (Ord t, Ord s) =>
+  Input t -> [PE t s] -> ParserM t s (Maybe (ParseTree t s, Input t))
+parsePEsAlternative tokens [] =
+  return Nothing
+parsePEsAlternative tokens (e:es) = do
+  r <- parsePE tokens e
+  case r of
+    Nothing -> parsePEsAlternative tokens es
+    _ -> return r

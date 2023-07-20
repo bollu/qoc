@@ -55,10 +55,12 @@ term ("->" term)*
 
 -- Parsing functions
 
-makeRules :: String -> [[PE]] -> (String, [PE])
-makeRules sym rules = (sym, map aux rules)
-  where aux [r] = r
-        aux rs = MP.PESequenceNode sym rs
+makeRules :: String -> [[PE]] -> (String, PE)
+makeRules sym rules = (sym, makeAlt $ map makeSeq rules)
+  where makeSeq [r] = r
+        makeSeq rs = MP.PESequenceNode sym rs
+        makeAlt [r] = r
+        makeAlt rs = MP.PEAlternative rs
 
 makeQocGrammar :: Grammar
 makeQocGrammar = MP.PEG {
