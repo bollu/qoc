@@ -26,9 +26,14 @@ _binding = [
   [MP.PELiteral "(", MP.PETerminal "ident", MP.PELiteral ":",
    MP.PENonTerminal "term", MP.PELiteral ")"]]
 
-_term_atom = [
+_term_2 = [
   [MP.PETerminal "ident"],
   [MP.PELiteral "(", MP.PENonTerminal "term", MP.PELiteral ")"]]
+
+_term_1 = [
+  -- Order is important :x
+  [MP.PENonTerminal "term_2", MP.PELiteral "->", MP.PENonTerminal "term_1"],
+  [MP.PENonTerminal "term_2"]]
 
 _term_trailing = [
   [MP.PELiteral "fun", MP.PEPlus (MP.PENonTerminal "binding"),
@@ -38,7 +43,7 @@ _term_trailing = [
   [MP.PENonTerminal "sort"]]
 
 _term = [
-  [MP.PEPlus (MP.PENonTerminal "term_atom"),
+  [MP.PEPlus (MP.PENonTerminal "term_1"),
    MP.PEOptional (MP.PENonTerminal "term_trailing")],
   [MP.PENonTerminal "term_trailing"]]
 
@@ -68,9 +73,10 @@ makeQocGrammar = MP.PEG {
       makeRules "sort" _sort,
       makeRules "universe" _universe,
       makeRules "binding" _binding,
-      makeRules "term_atom" _term_atom,
-      makeRules "term_trailing" _term_trailing,
-      makeRules "term" _term
+      makeRules "term" _term,
+      makeRules "term_1" _term_1,
+      makeRules "term_2" _term_2,
+      makeRules "term_trailing" _term_trailing
     ],
   MP.pegLiteralTokenType = "literal"
 }

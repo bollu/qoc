@@ -118,6 +118,7 @@ makeQocLexer =
          tLiteral ":",
          tLiteral "=>",
          tLiteral "_",
+         tLiteral "->",
          tIdent] in
   l3
 
