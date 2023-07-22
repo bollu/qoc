@@ -32,6 +32,10 @@ getExpr = do
   l <- lift getLine
   --lift $ qocLexerDumpString l
   lift $ qocParserDumpString l
+  lift $ putStrLn "--- Elaborated term ---"
+  lift $ case qocParseAndElabExpr l of
+    Nothing -> putStrLn "Nothing"
+    Just e -> print e
 
 repl :: CoreM ()
 repl = getExpr >> repl

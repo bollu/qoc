@@ -28,6 +28,8 @@ module Expr (
   mkSort,
   mkApp,
   mkApps,
+  mkArrow,
+  mkArrows,
   -- Expression destruction
   splitForall,
   forallName,
@@ -83,9 +85,9 @@ data Expr =
   | Const ResolvedName
   | Meta Integer
   | Sort Level
-  | Expr :$ Expr        -- _ _ (precedence 3)
-  | Binding :-> Scope   -- forall _, _ (precedence 2)
-  | Binding :=> Scope   -- fun _ => _ (precedence 2)
+  | Expr :$ Expr        -- _ _          (precedence 3, left associative)
+  | Binding :-> Scope   -- forall _, _  (precedence 2, right associative)
+  | Binding :=> Scope   -- fun _ => _   (precedence 2, right associative)
 
 {- We use De Bruijn indices to store terms, so that f.i.
      `fun x => x` is `Binding "x" (Sort 0) :=> Scope (Bound 0)`
@@ -102,11 +104,12 @@ showExpr _ (Const rn) = showString $ show rn
 showExpr _ (Meta m) = showString "?m." . showString (show m)
 showExpr _ (Sort Zero) = showString "Prop"
 showExpr _ (Sort l) = showString "Type " . showsPrec 2 l
-showExpr _ (e₁ :$ e₂) = showsPrec 3 e₁ . showString " " . showsPrec 3 e₂
-showExpr p (Binding n t :-> f) =
+showExpr p (e₁ :$ e₂) = showParen (p > 3) $
+  showsPrec 3 e₁ . showString " " . showsPrec 4 e₂
+showExpr p (Binding n t :-> f) = showParen (p > 2) $
   showString "forall (" . showString (show n) . showString ": " . showExpr 0 t .
   showString "), " . showsPrec 2 f
-showExpr p (Binding n t :=> f) =
+showExpr p (Binding n t :=> f) = showParen (p > 2) $
   showString "fun (" . showString (show n) . showString ": " . showExpr 0 t .
   showString ") => " . showsPrec 2 f
 
@@ -196,6 +199,13 @@ mkApp = (:$)
 
 mkApps :: [Expr] -> Expr
 mkApps = foldl1 mkApp
+
+-- TODO: Bindings with structurally distinct "_"/ignored variables
+mkArrow :: Expr -> Expr -> Expr
+mkArrow e f = mkForall (Binding (localNameFromString "_") e) f
+
+mkArrows :: [Expr] -> Expr
+mkArrows = foldr1 mkArrow
 
 -- TODO: | Should have a stack of introduced binders
 -- TODO: | Think harder about the operations to put there

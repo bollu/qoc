@@ -242,7 +242,7 @@ showParseTreeGen showT showS indent tree =
           "[]\n" ++ concat subs
         aux (ParseTreeNode s trees) =
           let subs = map (showParseTreeGen showT showS (indent+1)) trees in
-          showS s ++ "\n" ++ concat subs
+          "#" ++ showS s ++ "\n" ++ concat subs
 
 showParseTree :: (Show t, Show s) => Int -> ParseTree t s -> String
 showParseTree = showParseTreeGen show show
